@@ -1,20 +1,36 @@
 import java.util.Hashtable;
-import java.util.Set;
 import structure5.*;
 import java.io.Serializable;
 import java.nio.file.*;
 import java.util.Scanner;
+import org.jsoup.nodes.*;
 
 /**
  * A class that tracks term frequencies (counts) for a single document.
+ * Since it is serializable, the Hashtable is from java.util, not structure5.
  */
 class TermFrequency implements Serializable {
+    /* a hashtable representation of the appearances of each word in the document */
     private Hashtable<String,Integer> _counts;
-
-    // Storing this makes the calls to tf a lot faster
-    //private Association<String, Integer> mostFrequentTerm = new Association<>("", 0); 
-    private int mostFrequent = 0;   
     
+    /**
+      * Given a scanner, populate the table with the counts
+      * of each word found.
+      * 
+      * @param text Scanner of the document to be added.
+      */
+    public TermFrequency(Scanner text) {
+        _counts = new Hashtable<>();
+        String term;
+
+        while (text.hasNext()) {
+            term = Term.normalize(text.next());
+            if (!term.equals(""))
+                incrementCount(term);
+        }
+        text.close();
+    }
+
     /**
       * Opens the given file, and for each word in the file, converts
       * it to a normalized term, and counts it.
@@ -22,42 +38,27 @@ class TermFrequency implements Serializable {
       * @param file Path to a document.
       */
     public TermFrequency(Path file) {
-        _counts = new Hashtable<>();
-        Scanner text = new Scanner(new FileStream(file.toString()));
-
-        //faster
-        String term;
-        while (text.hasNext()) {
-            term = Term.normalize(text.next());
-            if (!term.equals(""))
-                incrementCount(term);
-        }
-       
-        // while (text.hasNextLine()) {
-        //     for (String word : Term.toTerms(text.nextLine())) {
-        //         incrementCount(word);
-        //     }
-        // }
-        text.close();
-
+        this(new Scanner(new FileStream(file.toString())));
     }
 
-    // Helper method for building the _counts hashtable.
+    /**
+      * Create a TermFrequency object for a document
+      * 
+      * @param doc an org.jsoup.nodes Document
+      */
+    public TermFrequency(Document doc) {
+        this(new Scanner(doc.normalise().text()));  
+    }
+
+    /* Helper method for building the _counts hashtable. */
     private void incrementCount(String term) {
+        // If _counts has the term add one to the value,
+        // else put the term int _counts and set value to one.
         if (_counts.containsKey(term)) {
             _counts.put(term, _counts.get(term) + 1);
         } else {
             _counts.put(term, 1);
         }
-
-        // update mostFrequentTerm if needed
-        if (_counts.get(term) > mostFrequent)
-            mostFrequent = _counts.get(term);
-            //mostFrequentTerm = new Association<String,Integer>(term, _counts.get(term));
-    }
-    
-    public boolean isEmpty() {
-        return _counts.size() == 0;
     }
     
     /**
@@ -66,27 +67,22 @@ class TermFrequency implements Serializable {
      * @param term A string term.
      */
     public double tf(String term) {
-        return (double) getCount(term) / mostFrequent; //has no parens
+        return (double) getCount(term) / mostFrequentTerm().getValue();
     }
     
     /**
      * Returns an association containing the most frequent term
      * along with its count.
      */
-    // public Association<String,Integer> mostFrequentTerm() {        
-    //     int largestValue = 0;
-    //     Association<String,Integer> mostFrequent = null;
-    //     Set<Association<String, Integer>> allElements = _counts.entrySet();
-
-    //     for (Association<String, Integer> curElement : allElements) {
-    //         if (curElement.getValue() > largestValue) {
-    //             mostFrequent = curElement;
-    //             largestValue = mostFrequent.getValue();
-    //         }
-    //     }
-
-    //     return mostFrequent;
-    // }
+    public Association<String,Integer> mostFrequentTerm() {        
+        Association<String,Integer> mostFrequent = new Association<>("", 0);
+        for (String key : _counts.keySet()) {
+            if (_counts.get(key) > mostFrequent.getValue()) {
+                mostFrequent = new Association<>(key, _counts.get(key));
+            }
+        }
+        return mostFrequent;
+    }
     
     /**
      * Returns the count for a given term.
@@ -101,16 +97,15 @@ class TermFrequency implements Serializable {
     
     /**
      * Returns all of the stored terms as a set.
+     * Since it's going from the java Set to a structure5 SetVector,
+     * the adding has to be manual.
      */
     public Set<String> terms() {
-        return _counts.keySet();
+        Set<String> terms = new SetVector<>();
+        for (String key : _counts.keySet()) {
+            terms.add(key);
+        }
+        return terms;
     }
 
-    public static void main(String[] args) {
-        for (int i = 0; i < 300; i++) {
-            TermFrequency t = new TermFrequency(Paths.get("ufo-test", "aus_gov.txt"));
-        }
-        //System.out.println(t.terms());
-        
-    }
 }
